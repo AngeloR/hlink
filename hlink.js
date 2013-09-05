@@ -2,6 +2,7 @@ config = require('./config.json');
 
 var hlink,
 	http,
+	querystring = require('querystring'),
 	Events = require('./lib/events');
 
 
@@ -9,7 +10,7 @@ var default_controller = require('./lib/default_controller');
 var loaded_controllers = {};
 
 function parse_url_parts(url) {
-	var controller = config.defualt_route,
+	var controller = config.default_route,
 		method = 'index',
 		args;
 
@@ -39,7 +40,8 @@ function parse_url_parts(url) {
 
 function handle_request(req, res) {
 	var routes = parse_url_parts(req.url),
-		tmp_loader;
+		tmp_loader,
+		chunks = '';
 
 	if(loaded_controllers[routes.controller] == undefined) {
 		tmp_loader = require('./controllers/' + routes.controller);
@@ -47,9 +49,20 @@ function handle_request(req, res) {
 		loaded_controllers[routes.controller] = default_controller.extend(tmp_loader);
 	}
 
-	loaded_controllers[routes.controller].req = req;
-	loaded_controllers[routes.controller].res = res;
-	loaded_controllers[routes.controller][routes.method].apply(loaded_controllers[routes.controller], routes.args);
+	// read the data
+	req.on('data', function(chunk) {
+		chunks += chunk;
+	});
+
+	req.on('end', function() {
+		loaded_controllers[routes.controller].post = querystring.parse(chunks);
+
+		loaded_controllers[routes.controller].req = req;
+		loaded_controllers[routes.controller].res = res;
+		loaded_controllers[routes.controller][routes.method].apply(loaded_controllers[routes.controller], routes.args);
+
+	});
+
 }
 
 
